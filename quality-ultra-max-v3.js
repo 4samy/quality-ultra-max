@@ -13,7 +13,7 @@
  * - الروابط (15%)
  * - الوسائط (10%)
  * 
- * Built: 2025-11-25T05:34:47.534Z
+ * Built: 2025-11-25T06:09:48.640Z
  */
 
 (function(window, $, mw) {
@@ -35,24 +35,7 @@
             this.api = new mw.Api();
             this.cache = new Map();
          }
-   async fetch() {
-    const title = mw.config.get('wgPageName');
-    const api = new mw.Api();
-
-    const data = await api.get({
-        action: "parse",
-        page: title,
-        prop: "wikitext|text",
-        format: "json",
-        formatversion: 2
-    });
-
-    return {
-        text: data.parse.wikitext,
-        html: data.parse.text
-    };
-}
-
+   
          /**
           * جلب المقدمة (القسم 0) بشكل منفصل
           * @param {string} pageTitle 
@@ -229,6 +212,8 @@
    
       class UnifiedArticleModel {
          constructor(rawData) {
+               // احتفظ بالبيانات الخام لعمليات المحللات التي تحتاجها
+               this.rawData = rawData;
             this.title = rawData.pageTitle;
             this.introWikitext = rawData.introWikitext;
             this.html = rawData.fullParse.text || '';
@@ -470,6 +455,9 @@
       // تصدير
       window.QualityUltraMax = window.QualityUltraMax || {};
       window.QualityUltraMax.UnifiedArticleModel = UnifiedArticleModel;
+   
+      // توافق اسم قديم (ArticleModel)
+      window.QualityUltraMax.ArticleModel = UnifiedArticleModel;
 
    // ========================================
    // Module: core/scoringEngine.js
@@ -5373,55 +5361,40 @@
       }
    
       /**
-       * تشغيل تلقائي عند تحميل الصفحة
+       * Bootloader: use mw.loader and wikipage hook for safe initialization on Wikipedia
        */
-      $(document).ready(function() {
-         // التأكد من أن جميع الوحدات محملة
-         if (
-            window.QualityUltraMax.DataFetcher &&
-            window.QualityUltraMax.ArticleModel &&
-            window.QualityUltraMax.ScoringEngine &&
-            window.QualityUltraMax.MediaAnalyzer &&
-            window.QualityUltraMax.ReferenceAnalyzer &&
-            window.QualityUltraMax.StructureAnalyzer &&
-            window.QualityUltraMax.LinkAnalyzer &&
-            window.QualityUltraMax.GrammarAnalyzer &&
-            window.QualityUltraMax.MaintenanceAnalyzer &&
-            window.QualityUltraMax.LanguageAnalyzer &&
-            window.QualityUltraMax.PanelRenderer
-         ) {
-            const orchestrator = new QualityUltraMaxOrchestrator();
-            orchestrator.init();
+      mw.loader.using(['mediawiki.api', 'mediawiki.util']).then(function() {
+         // only run in main article namespace
+         if (mw.config.get('wgNamespaceNumber') !== 0) return;
    
-            // تصدير للوصول الخارجي
-            window.QualityUltraMax.Orchestrator = orchestrator;
-         } else {
-            console.error('[QUM] Not all modules loaded. Cannot initialize.');
-         }
+         mw.hook('wikipage.content').add(function() {
+            // التأكد من أن جميع الوحدات محملة
+            if (
+               window.QualityUltraMax.DataFetcher &&
+               (window.QualityUltraMax.UnifiedArticleModel || window.QualityUltraMax.ArticleModel) &&
+               window.QualityUltraMax.ScoringEngine &&
+               window.QualityUltraMax.MediaAnalyzer &&
+               window.QualityUltraMax.ReferenceAnalyzer &&
+               window.QualityUltraMax.StructureAnalyzer &&
+               window.QualityUltraMax.LinkAnalyzer &&
+               window.QualityUltraMax.GrammarAnalyzer &&
+               window.QualityUltraMax.MaintenanceAnalyzer &&
+               window.QualityUltraMax.LanguageAnalyzer &&
+               window.QualityUltraMax.PanelRenderer
+            ) {
+               const orchestrator = new QualityUltraMaxOrchestrator();
+               orchestrator.init();
+   
+               // تصدير للوصول الخارجي
+               window.QualityUltraMax.Orchestrator = orchestrator;
+            } else {
+               console.error('[QUM] Not all modules loaded. Cannot initialize.');
+            }
+         });
+      }).catch(function(err) {
+         console.error('[QUM] Failed to load required MediaWiki modules:', err);
       });
 
    console.log('[QUM] All modules loaded successfully ✓');
 
 })(window, jQuery, mediaWiki);
-
-// Bootloader: fetch page data first, then initialize UI (runs only in main namespace)
-mw.loader.using(['mediawiki.util','mediawiki.api']).then(function () {
-    mw.hook('wikipage.content').add(async function () {
-        try {
-            if (mw.config.get('wgNamespaceNumber') !== 0) return;
-
-            const fetcher  = new QualityUltraMax.DataFetcher();
-            const pageData = await fetcher.fetch();   // 👈 أهم سطر
-
-            const model   = new QualityUltraMax.UnifiedArticleModel(pageData);
-            const scoring = new QualityUltraMax.ScoringEngine(model);
-            const panel   = new QualityUltraMax.PanelRenderer(scoring);
-
-            panel.render();
-            console.log("[QUM] Panel rendered ✔️");
-        } catch (e) {
-            console.error("[QUM] Bootloader error:", e);
-        }
-    });
-});
-
