@@ -35,7 +35,24 @@
             this.api = new mw.Api();
             this.cache = new Map();
          }
-   
+   async fetch() {
+    const title = mw.config.get('wgPageName');
+    const api = new mw.Api();
+
+    const data = await api.get({
+        action: "parse",
+        page: title,
+        prop: "wikitext|text",
+        format: "json",
+        formatversion: 2
+    });
+
+    return {
+        text: data.parse.wikitext,
+        html: data.parse.text
+    };
+}
+
          /**
           * جلب المقدمة (القسم 0) بشكل منفصل
           * @param {string} pageTitle 
