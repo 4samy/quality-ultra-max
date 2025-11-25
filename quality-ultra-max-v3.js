@@ -5386,3 +5386,30 @@
    console.log('[QUM] All modules loaded successfully ✓');
 
 })(window, jQuery, mediaWiki);
+
+// Bootloader: fetch page data first, then initialize UI (runs only in main namespace)
+mw.loader.using(['mediawiki.util','mediawiki.api']).then(function () {
+   mw.hook('wikipage.content').add(function () {
+      try {
+         // تشغيل فقط في مساحة اسم المحتوى الرئيسية
+         if (mw.config.get('wgNamespaceNumber') !== 0) return;
+
+         if (typeof QualityUltraMax !== 'undefined' && QualityUltraMax) {
+            const fetcher = new QualityUltraMax.DataFetcher();
+            // احصل على بيانات الصفحة أولاً ثم أنشئ النموذج
+            fetcher.fetch().then(function(pageData) {
+               const model = new QualityUltraMax.UnifiedArticleModel(pageData);
+               const scoring = new QualityUltraMax.ScoringEngine(model);
+               const panel = new QualityUltraMax.PanelRenderer(scoring);
+               panel.render();
+            }).catch(function(err) {
+               console.error('[QUM] DataFetcher.fetch() error:', err);
+            });
+         } else {
+            console.warn('[QUM] QualityUltraMax is not available; bootloader skipped.');
+         }
+      } catch (e) {
+         console.error('[QUM] Bootloader error:', e);
+      }
+   });
+});
